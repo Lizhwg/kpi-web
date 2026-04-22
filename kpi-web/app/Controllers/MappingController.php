@@ -56,7 +56,8 @@ class MappingController
             $evaluators = $stmtEval->fetchAll(PDO::FETCH_ASSOC);
 
             // Sửa đoạn WHERE này
-            $whereSql = "WHERE u.business_unit_id = :bu_id AND eh.status IN ('Chưa đánh giá', 'Chờ duyệt')";
+            // Sửa lại dòng này trong hàm review()
+            $whereSql = "WHERE u.business_unit_id = :bu_id AND eh.status IN ('Chưa đánh giá', 'Chờ duyệt', 'Đánh giá lại')";
             if ($selectedPeriodId > 0) $whereSql .= " AND eh.period_id = :period_id";
 
             $sql = "SELECT eh.id, u.username as member_name, bu.bu_name as business_unit, 
@@ -95,30 +96,55 @@ class MappingController
     public function reviewApprove()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
-        $action = $_POST['action'] ?? '';
-        $selectedIds = json_decode($_POST['selected_ids'] ?? '[]', true);
-        $evaluatorId = $_POST['evaluator_id'] ?? 0;
 
-        if (empty($selectedIds)) {
-            $_SESSION['error_message'] = "Chưa chọn nhân viên!";
-            header('Location: review'); exit;
+        $selectedIdsJson = $_POST['selected_ids'] ?? null;
+        $action = $_POST['action'] ?? ''; // 'approve' hoặc 'edit'
+        $newManagerId = $_POST['evaluator_id'] ?? null; // ID người đánh giá mới
+
+        $ids = json_decode($selectedIdsJson, true);
+        if (empty($ids)) {
+            echo json_encode(['status' => 'error', 'message' => 'Vui lòng chọn bản ghi']);
+            return;
         }
 
-        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
-        if ($action === 'approve') {
-                $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+        try {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+            // TRƯỜNG HỢP 1: CHỈNH SỬA NGƯỜI ĐÁNH GIÁ (EDIT)
+            if ($action === 'edit') {
+                if (!$newManagerId) {
+                    echo json_encode(['status' => 'error', 'message' => 'Chưa chọn người đánh giá mới']);
+                    return;
+                }
                 
-                // Đổi thành 'Chờ duyệt' để phân biệt với hàng chưa được động vào
-                $query = "UPDATE Evaluation_Headers SET status = 'Chờ duyệt' WHERE id IN ($placeholders)";
-                
-                $stmt = $this->pdo->prepare($query);
-                $stmt->execute($selectedIds);
-            } elseif ($action === 'edit' && $evaluatorId > 0) {
-            $stmt = $this->pdo->prepare("UPDATE Evaluation_Headers SET manager_id = ? WHERE id IN ($placeholders)");
-            $stmt->execute(array_merge([$evaluatorId], $selectedIds));
-            $_SESSION['success_message'] = "Đã cập nhật PM mới!";
+                // Cập nhật manager_id và giữ trạng thái hoặc đưa về 'Chưa đánh giá' để PM mới thấy
+                $sql = "UPDATE evaluation_headers SET manager_id = ?, status = 'Chưa đánh giá' WHERE id IN ($placeholders)";
+                $stmt = $this->pdo->prepare($sql);
+                $params = array_merge([$newManagerId], $ids);
+            } 
+            
+            // TRƯỜNG HỢP 2: PHÊ DUYỆT (APPROVE)
+            else if ($action === 'approve') {
+                $sql = "UPDATE evaluation_headers SET status = 'Chưa đánh giá' WHERE id IN ($placeholders)";
+                $stmt = $this->pdo->prepare($sql);
+                $params = $ids;
+            }
+
+           $result = $stmt->execute($params);
+
+            if ($result) {
+                // Thay vì redirect bằng PHP, ta trả về JSON thành công
+                echo json_encode([
+                    'status' => 'success', 
+                    'message' => 'Thao tác thành công!'
+                ]);
+                // Lưu message vào session để trang sau khi load lại có thể hiển thị
+                $_SESSION['success_message'] = "Thao tác thành công!";
+                exit;
+            }
+        } catch (\Exception $e) {
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
         }
-        header('Location: review');
-        exit;
     }
+   
 }

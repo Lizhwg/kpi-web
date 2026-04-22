@@ -385,9 +385,7 @@ if (isset($_SESSION['error_message'])) {
                     <?php foreach ($evaluations as $eval): ?>
                         <tr data-eval-id="<?php echo $eval['id']; ?>">
                             <td>
-                                <input type="checkbox" class="checkbox row-checkbox" 
-                                    value="<?php echo $eval['id']; ?>" 
-                                    onchange="updateSelectAll()">
+                                <input type="checkbox" class="checkbox row-checkbox" onchange="updateSelectAll()">
                             </td>
                             <td><?php echo htmlspecialchars($eval['id']); ?></td>
                             <td><?php echo htmlspecialchars($eval['member_name']); ?></td>
@@ -501,21 +499,31 @@ if (isset($_SESSION['error_message'])) {
     <script>
         function handleActionChange() {
             const action = document.getElementById('actionSelect').value;
+            // Kiểm tra xem có ít nhất 1 checkbox được tích hay không
+            const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
             const btn = document.getElementById('actionBtn');
-            btn.disabled = !action;
-        }
+
+    // Nút chỉ sáng khi: Đã chọn Action (Duyệt/Sửa) VÀ Đã tích ít nhất 1 người
+    if (action !== "" && selectedIds.length > 0) {
+        btn.disabled = false;
+    } else {
+        btn.disabled = true;
+    }
+}
 
         function toggleSelectAll() {
             const selectAll = document.getElementById('selectAll').checked;
             document.querySelectorAll('.row-checkbox').forEach(cb => {
                 cb.checked = selectAll;
             });
+            handleActionChange();
         }
 
         function updateSelectAll() {
             const allChecked = document.querySelectorAll('.row-checkbox').length > 0 &&
                              Array.from(document.querySelectorAll('.row-checkbox')).every(cb => cb.checked);
             document.getElementById('selectAll').checked = allChecked;
+            handleActionChange();
         }
 
         function getSelectedIds() {
@@ -556,11 +564,14 @@ if (isset($_SESSION['error_message'])) {
 }
 
         function confirmEdit() {
-            const evaluatorId = document.getElementById('evaluatorSelect').value;
-            if (!evaluatorId) {
-                alert('Vui lòng chọn người đánh giá');
-                return;
-            }
+        const evaluatorId = document.getElementById('evaluatorSelect').value;
+        const selectedIds = getSelectedIds();
+        
+        document.getElementById('actionInput').value = 'edit'; // Đảm bảo gửi chữ 'edit'
+        document.getElementById('selectedIds').value = JSON.stringify(selectedIds);
+        document.getElementById('evaluatorId').value = evaluatorId;
+        submitForm();
+    }
 
             const selectedIds = getSelectedIds();
             document.getElementById('actionInput').value = 'edit';
@@ -569,10 +580,11 @@ if (isset($_SESSION['error_message'])) {
             submitForm();
         }
 
-        function submitForm() {
+       function submitForm() {
             const form = document.getElementById('reviewForm');
             form.method = 'POST';
-            form.action = 'review-approve';
+            // Đảm bảo đường dẫn này khớp với route POST trong web.php của em
+            form.action = '/KPI/KPI/kpi-web/mapping/review-approve'; 
             form.submit();
         }
 

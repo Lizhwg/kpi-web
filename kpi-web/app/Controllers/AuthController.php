@@ -93,10 +93,25 @@ class AuthController
         // ==========================================
         // [ĐÃ SỬA LỖI 1]: Phân luồng ngay sau khi đăng nhập thành công
         // ==========================================
-        if ($_SESSION['user_role'] === 2) {
-            header('Location: /KPI/KPI/kpi-web/mapping/review');
-        } else {
-            header('Location: /KPI/KPI/kpi-web/dashboard');
+        $role = (int)$_SESSION['user_role'];
+
+        switch ($role) {
+            case 2: // Thư ký
+                header('Location: /KPI/KPI/kpi-web/mapping/review');
+                break;
+            
+            case 3: // PM
+            case 4: // Trưởng phòng (TP cũng cần xem danh sách để duyệt)
+                header('Location: /KPI/KPI/kpi-web/evaluation/request-list');
+                break;
+            
+            case 1: // Admin
+                header('Location: /KPI/KPI/kpi-web/admin/dashboard');
+                break;
+
+            default: // Nhân viên hoặc các Role khác
+                header('Location: /KPI/KPI/kpi-web/dashboard');
+                break;
         }
         exit;
     }
